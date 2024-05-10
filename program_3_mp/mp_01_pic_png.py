@@ -59,7 +59,7 @@ options = vision.HandLandmarkerOptions(base_options=base_options,
                                        min_hand_presence_confidence=0.1)
 detector = vision.HandLandmarker.create_from_options(options)
 
-mp_image = mp.Image.create_from_file('1.png')
+mp_image = mp.Image.create_from_file('../photo.jpg')
 detection_result = detector.detect(mp_image)
 
 annotated_image = draw_landmarks_on_image(mp_image.numpy_view(), detection_result)

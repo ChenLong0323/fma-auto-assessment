@@ -61,7 +61,7 @@ options = HandLandmarkerOptions(
     running_mode=VisionRunningMode.IMAGE,
     num_hands=2)
 with HandLandmarker.create_from_options(options) as landmarker:
-    mp_image = mp.Image.create_from_file('1.png')
+    mp_image = mp.Image.create_from_file('test_mp.png')
     hand_landmarker_result = landmarker.detect(mp_image)
     annotated_image = draw_landmarks_on_image(mp_image.numpy_view(), hand_landmarker_result)
 

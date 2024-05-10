@@ -78,6 +78,6 @@ def main(name, save_path):
 
 
 if __name__ == "__main__":
-    save_path = 'C:/000_data'
-    patient_name = 'CL'
+    save_path = './'
+    patient_name = 'test'
     main(patient_name, save_path)
