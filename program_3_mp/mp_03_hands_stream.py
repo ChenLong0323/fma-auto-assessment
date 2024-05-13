@@ -2,16 +2,18 @@ import cv2
 import mediapipe as mp
 import time
 
-# FPS 计算
-frame_count = 0
-start_time = time.time()
-fps = 0
 mp_drawing = mp.solutions.drawing_utils
 mp_drawing_styles = mp.solutions.drawing_styles
 mp_hands = mp.solutions.hands
 
+# FPS 计算
+frame_count = 0
+start_time = time.time()
+fps = 0
+
 # For webcam input:
 cap = cv2.VideoCapture(0)
+
 with mp_hands.Hands(
         static_image_mode=False,
         max_num_hands=2,
