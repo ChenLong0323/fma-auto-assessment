@@ -10,7 +10,7 @@ with mp_hands.Hands(
         static_image_mode=True,
         max_num_hands=2,
         min_detection_confidence=0.5) as hands:
-    image = cv2.imread("1.png")
+    image = cv2.imread("../data_1_test/hand2.jpg")
 
     print(image.flags.writeable)
 
@@ -19,3 +19,5 @@ with mp_hands.Hands(
     results = hands.process(image).multi_hand_landmarks
     results2 = hands.process(image).multi_handedness
     point1 = results[0].landmark[2].x
+
+
