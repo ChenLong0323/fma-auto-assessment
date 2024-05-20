@@ -1,5 +1,5 @@
 """
-本项目基于 framework6
+本项目基于framework_7
 """
 import pyk4a
 from pyk4a import Config, PyK4A
@@ -9,7 +9,6 @@ import cv2
 import time
 import threading
 import queue
-
 
 def initialize():
     """
@@ -24,7 +23,7 @@ def initialize():
     )
     k4a.start()
 
-    model = YOLO('models/yolov8s-pose.pt')
+    model = YOLO('../models/yolov8s-pose.pt')
 
     mp_hands = mp.solutions.hands.Hands(
         static_image_mode=False,
@@ -35,7 +34,6 @@ def initialize():
     )
 
     return k4a, model, mp_hands
-
 
 def fps_cal(start_time, frame_count):
     """
@@ -64,7 +62,6 @@ def fps_cal(start_time, frame_count):
     else:
         fps = frame_count / elapsed_time
     return fps, start_time, frame_count
-
 
 def extract_landmark_coordinates(results_hand, height, width):
     """
@@ -108,7 +105,6 @@ def extract_landmark_coordinates(results_hand, height, width):
 
     return x_coordinates, y_coordinates
 
-
 def draw_circles(image, x_coordinates, y_coordinates):
     """
     在图像上绘制圆圈
@@ -128,23 +124,29 @@ def draw_circles(image, x_coordinates, y_coordinates):
             point = (int(x), int(y))
             cv2.circle(image, point, radiu, color, -1)
 
-
 def process_frame(k4a, model, mp_hands, frame_queue, window_width, running_flag):
     while running_flag[0]:
-        capture = k4a.get_capture()
-        image = capture.color[:, 640 - window_width:640 + window_width, :3]
-        height, width, _ = image.shape
+        try:
+            capture = k4a.get_capture()
+            image = capture.color[:, 640 - window_width:640 + window_width, :3]
+            height, width, _ = image.shape
 
-        results_pose = model(image, stream=True, conf=0.7, verbose=False)
+            results_pose = model(image, stream=True, conf=0.7, verbose=False)
 
-        image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        results_hand = mp_hands.process(image_rgb).multi_hand_landmarks
+            image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+            results_hand = mp_hands.process(image_rgb).multi_hand_landmarks
 
-        x_coordinates, y_coordinates = extract_landmark_coordinates(results_hand, height, width)
+            x_coordinates, y_coordinates = extract_landmark_coordinates(results_hand, height, width)
 
-        if not frame_queue.full():
-            frame_queue.put((image, results_pose, x_coordinates, y_coordinates))
+            frame_queue.put((image, results_pose, x_coordinates, y_coordinates), timeout=0.1)
+        except queue.Full:
+            # 在队列满时忽略，以避免阻塞
+            continue
+        except Exception as e:
+            print(f"Error in thread: {e}")
+            break
 
+    print("Thread exiting...")
 
 def main():
     k4a, model, mp_hands = initialize()
@@ -188,7 +190,6 @@ def main():
         print('1')
         thread.join()  # 确保线程结束
         print('2')
-
 
 if __name__ == "__main__":
     main()

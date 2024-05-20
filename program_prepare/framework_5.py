@@ -1,8 +1,8 @@
 """
-本版本相较于上个版本，修复了按q无法退出的bug，同时提升了速度
-frame_queue.put((image, results_pose, x_coordinates, y_coordinates)) 这一行的作用是将处理好的帧数据放入队列 frame_queue 中，以便主线程能够从队列中取出并显示处理后的图像。
-检查 frame_queue 是否已满 (if not frame_queue.full()) 是为了避免阻塞。因为 Queue.put() 在队列已满时会阻塞当前线程，直到有空位可用。如果不进行此检查，可能会导致线程无法及时响应退出标志，尤其是在 frame_queue 只有一个位置时（maxsize=1）。
-为了进一步优化，可以设置一个超时时间，使得 put 操作不会无限期地阻塞。以下是改进后的代码：
+本版本相较于上个版本，主要聚焦于帧率提升和多线程处理。
+    多线程处理： 使用线程来并行处理帧的获取和处理。process_frame函数负责获取和处理帧，并将结果放入队列中。
+    队列： 使用队列在线程之间传递数据，避免竞争条件。
+    FPS计算优化： 将FPS计算移到主循环中，只在获取新帧时计算。
 """
 import pyk4a
 from pyk4a import Config, PyK4A
@@ -12,6 +12,7 @@ import cv2
 import time
 import threading
 import queue
+
 
 def initialize():
     """
@@ -26,7 +27,7 @@ def initialize():
     )
     k4a.start()
 
-    model = YOLO('models/yolov8s-pose.pt')
+    model = YOLO('../models/yolov8s-pose.pt')
 
     mp_hands = mp.solutions.hands.Hands(
         static_image_mode=False,
@@ -37,6 +38,7 @@ def initialize():
     )
 
     return k4a, model, mp_hands
+
 
 def fps_cal(start_time, frame_count):
     """
@@ -65,6 +67,7 @@ def fps_cal(start_time, frame_count):
     else:
         fps = frame_count / elapsed_time
     return fps, start_time, frame_count
+
 
 def extract_landmark_coordinates(results_hand, height, width):
     """
@@ -108,6 +111,7 @@ def extract_landmark_coordinates(results_hand, height, width):
 
     return x_coordinates, y_coordinates
 
+
 def draw_circles(image, x_coordinates, y_coordinates):
     """
     在图像上绘制圆圈
@@ -127,40 +131,31 @@ def draw_circles(image, x_coordinates, y_coordinates):
             point = (int(x), int(y))
             cv2.circle(image, point, radiu, color, -1)
 
-def process_frame(k4a, model, mp_hands, frame_queue, window_width, running_flag):
-    while running_flag[0]:
-        try:
-            capture = k4a.get_capture()
-            image = capture.color[:, 640 - window_width:640 + window_width, :3]
-            height, width, _ = image.shape
 
-            results_pose = model(image, stream=True, conf=0.7, verbose=False)
+def process_frame(k4a, model, mp_hands, frame_queue, window_width):
+    while True:
+        capture = k4a.get_capture()
+        image = capture.color[:, 640 - window_width:640 + window_width, :3]
+        height, width, _ = image.shape
 
-            image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-            results_hand = mp_hands.process(image_rgb).multi_hand_landmarks
+        results_pose = model(image, stream=True, conf=0.7, verbose=False)
 
-            x_coordinates, y_coordinates = extract_landmark_coordinates(results_hand, height, width)
+        image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        results_hand = mp_hands.process(image_rgb).multi_hand_landmarks
 
-            frame_queue.put((image, results_pose, x_coordinates, y_coordinates), timeout=0.1)
-        except queue.Full:
-            # 在队列满时忽略，以避免阻塞
-            continue
-        except Exception as e:
-            print(f"Error in thread: {e}")
-            break
+        x_coordinates, y_coordinates = extract_landmark_coordinates(results_hand, height, width)
 
-    print("Thread exiting...")
+        frame_queue.put((image, results_pose, x_coordinates, y_coordinates))
+
 
 def main():
     k4a, model, mp_hands = initialize()
 
     frame_queue = queue.Queue(maxsize=1)
-    running_flag = [True]  # 使用列表作为可变标志
 
     window_width = 200
 
-    thread = threading.Thread(target=process_frame, args=(k4a, model, mp_hands, frame_queue, window_width, running_flag))
-    thread.start()
+    threading.Thread(target=process_frame, args=(k4a, model, mp_hands, frame_queue, window_width)).start()
 
     frame_count = 0
     start_time = time.time()
@@ -184,15 +179,11 @@ def main():
                 cv2.imshow("rgb", image)
 
             if cv2.waitKey(1) & 0xFF == ord("q"):
-                running_flag[0] = False  # 设置标志为False以停止线程
                 break
     finally:
         k4a.stop()
         cv2.destroyAllWindows()
         mp_hands.close()
-        print('1')
-        thread.join()  # 确保线程结束
-        print('2')
 
 if __name__ == "__main__":
     main()

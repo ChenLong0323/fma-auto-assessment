@@ -27,7 +27,7 @@ def initial_k4a():
 
 
 def initial_pose():
-    model = YOLO('models/yolov8s-pose.pt')
+    model = YOLO('../models/yolov8s-pose.pt')
     return model
 
 

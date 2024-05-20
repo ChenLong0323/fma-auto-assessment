@@ -1,3 +1,11 @@
+"""
+本版本相较于上一版，更新了
+extract_landmark_coordinates
+修复了无法提取一只手的坐标的问题，同时根据手在图片中的位置（以0.5为界限），对左右手进行区分
+draw_circles
+修复了当手部关键点坐标为None时的问题
+"""
+
 import pyk4a
 from pyk4a import Config, PyK4A
 from ultralytics import YOLO
@@ -21,7 +29,7 @@ def initial_k4a():
 
 # 初始化 YOLO 模型
 def initial_pose():
-    model = YOLO('models/yolov8s-pose.pt')
+    model = YOLO('../models/yolov8s-pose.pt')
     return model
 
 
@@ -37,38 +45,32 @@ def fps_cal(fps, frame_count, start_time):
 
 
 # 提取手部关键点的坐标
-def extract_landmark_coordinates(results_hand, image):
-    if not results_hand or len(results_hand) < 2:
-        return [], []
+def extract_landmark_coordinates(results_hand, height, width):
+    if not results_hand:
+        return [None, None, None, None], [None, None, None, None]
 
-    landmarks_l = results_hand[0].landmark
-    landmarks_r = results_hand[1].landmark
+    # 初始化右手和左手的坐标
+    right_hand_x = [None, None]
+    right_hand_y = [None, None]
+    left_hand_x = [None, None]
+    left_hand_y = [None, None]
 
-    # 判断哪个手部 landmark 更靠左
-    if landmarks_r[5].x < landmarks_l[5].x:
-        left_index = 1
-    else:
-        left_index = 0
+    for hand_landmarks in results_hand:
+        x5, x17 = hand_landmarks.landmark[5].x, hand_landmarks.landmark[17].x
+        y5, y17 = hand_landmarks.landmark[5].y, hand_landmarks.landmark[17].y
 
-    # 根据左右手的顺序调整坐标
-    x_coordinates = [
-        landmarks_r[5].x, landmarks_r[17].x,
-        landmarks_l[5].x, landmarks_l[17].x
-    ]
-    y_coordinates = [
-        landmarks_r[5].y, landmarks_r[17].y,
-        landmarks_l[5].y, landmarks_l[17].y
-    ]
+        if x5 < 0.5:
+            # 归一化位置小于0.5的为右手
+            right_hand_x = [x5, x17]
+            right_hand_y = [y5, y17]
+        else:
+            # 归一化位置大于0.5的为左手
+            left_hand_x = [x5, x17]
+            left_hand_y = [y5, y17]
 
     # 根据图像宽度和高度调整坐标
-    height, width, _ = image.shape
-    x_coordinates = [x * width for x in x_coordinates]
-    y_coordinates = [y * height for y in y_coordinates]
-
-    # 如果右手在左手之前，则交换左右手的坐标
-    if left_index == 0:
-        x_coordinates = [x_coordinates[2], x_coordinates[3], x_coordinates[0], x_coordinates[1]]
-        y_coordinates = [y_coordinates[2], y_coordinates[3], y_coordinates[0], y_coordinates[1]]
+    x_coordinates = [(x * width) if x is not None else None for x in (right_hand_x + left_hand_x)]
+    y_coordinates = [(y * height) if y is not None else None for y in (right_hand_y + left_hand_y)]
 
     return x_coordinates, y_coordinates
 
@@ -76,10 +78,11 @@ def extract_landmark_coordinates(results_hand, image):
 # 在图像上绘制圆圈
 def draw_circles(image, x_coordinates, y_coordinates):
     colors = [(0, 0, 255), (0, 255, 255), (255, 0, 0), (0, 255, 0)]  # 红, 黄, 蓝, 绿
-    radius = [5, 10, 5, 10]
+    radius = [10, 5, 10, 5]
     for (x, y), color, radiu in zip(zip(x_coordinates, y_coordinates), colors, radius):
-        point = (int(x), int(y))
-        cv2.circle(image, point, radiu, color, -1)
+        if x is not None and y is not None:
+            point = (int(x), int(y))
+            cv2.circle(image, point, radiu, color, -1)
 
 
 def main():
@@ -95,7 +98,7 @@ def main():
     start_time = time.time()
     fps = 0
 
-    window_width = 200
+    window_width = 300
 
     with mp_hands.Hands(
             static_image_mode=False,
@@ -110,6 +113,7 @@ def main():
             # 获取图像
             capture = k4a.get_capture()
             image = capture.color[:, 640 - window_width:640 + window_width, :3]
+            height, width, _ = image.shape
 
             if cv2.waitKey(1) & 0xFF == ord("q"):
                 break
@@ -121,7 +125,8 @@ def main():
             image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
             results_hand = hands.process(image_rgb).multi_hand_landmarks
 
-            x_coordinates, y_coordinates = extract_landmark_coordinates(results_hand, image)
+            x_coordinates, y_coordinates = extract_landmark_coordinates(results_hand, height, width)
+            print(x_coordinates, y_coordinates)
 
             # 绘制结果
             for result in results_pose:

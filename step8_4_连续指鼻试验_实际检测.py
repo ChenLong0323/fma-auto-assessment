@@ -76,7 +76,7 @@ def main():
     while True:
         capture = k4a.get_capture()
         # 读取frame,YOLO输入是三维图片
-        frame = capture.color[:, 430:850, :3]
+        frame = capture.color[:, :, :3]
         frame = cv2.flip(frame, 1)
         # 调用yolo检测
         results = model(frame, stream=True, conf=0.7, verbose=False)

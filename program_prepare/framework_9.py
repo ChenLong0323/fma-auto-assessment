@@ -1,8 +1,11 @@
 """
-本版本相较于上个版本，主要聚焦于帧率提升和多线程处理。
-    多线程处理： 使用线程来并行处理帧的获取和处理。process_frame函数负责获取和处理帧，并将结果放入队列中。
-    队列： 使用队列在线程之间传递数据，避免竞争条件。
-    FPS计算优化： 将FPS计算移到主循环中，只在获取新帧时计算。
+本项目修改如下
+    对extract_landmark_coordinates函数进行修改
+        包括对左右手的判断，以及对左右手的坐标提取
+    新增绘制窗口参数和det窗口参数
+        show_window_width = 400
+        hand_window_width = 200
+
 """
 import pyk4a
 from pyk4a import Config, PyK4A
@@ -27,7 +30,7 @@ def initialize():
     )
     k4a.start()
 
-    model = YOLO('models/yolov8s-pose.pt')
+    model = YOLO('../models/yolov8s-pose.pt')
 
     mp_hands = mp.solutions.hands.Hands(
         static_image_mode=False,
@@ -69,7 +72,7 @@ def fps_cal(start_time, frame_count):
     return fps, start_time, frame_count
 
 
-def extract_landmark_coordinates(results_hand, height, width):
+def extract_landmark_coordinates(results_hand, height, width, show_window_width, hand_window_width):
     """
     提取手部关键点的坐标
 
@@ -95,18 +98,38 @@ def extract_landmark_coordinates(results_hand, height, width):
     left_hand_x = [None, None]
     left_hand_y = [None, None]
 
-    for hand_landmarks in results_hand:
-        x5, x17 = hand_landmarks.landmark[5].x, hand_landmarks.landmark[17].x
-        y5, y17 = hand_landmarks.landmark[5].y, hand_landmarks.landmark[17].y
+    if len(results_hand) == 1:
+        for hand_landmarks in results_hand:
+            x5, x17 = hand_landmarks.landmark[5].x, hand_landmarks.landmark[17].x
+            y5, y17 = hand_landmarks.landmark[5].y, hand_landmarks.landmark[17].y
 
-        if x5 < 0.5:
-            right_hand_x = [x5, x17]
-            right_hand_y = [y5, y17]
+            if x5 < 0.5:
+                right_hand_x = [x5, x17]
+                right_hand_y = [y5, y17]
+            else:
+                left_hand_x = [x5, x17]
+                left_hand_y = [y5, y17]
+    else:
+        # 提取手部关键点的x和y坐标
+        x5_l, x17_l = results_hand[0].landmark[5].x, results_hand[0].landmark[17].x
+        y5_l, y17_l = results_hand[0].landmark[5].y, results_hand[0].landmark[17].y
+
+        x5_r, x17_r = results_hand[1].landmark[5].x, results_hand[1].landmark[17].x
+        y5_r, y17_r = results_hand[1].landmark[5].y, results_hand[1].landmark[17].y
+
+        # 比较x5_l和x5_r，确定左右手
+        if x5_l < x5_r:
+            right_hand_x = [x5_l, x17_l]
+            right_hand_y = [y5_l, y17_l]
+            left_hand_x = [x5_r, x17_r]
+            left_hand_y = [y5_r, y17_r]
         else:
-            left_hand_x = [x5, x17]
-            left_hand_y = [y5, y17]
+            right_hand_x = [x5_r, x17_r]
+            right_hand_y = [y5_r, y17_r]
+            left_hand_x = [x5_l, x17_l]
+            left_hand_y = [y5_l, y17_l]
 
-    x_coordinates = [(x * width) if x is not None else None for x in (right_hand_x + left_hand_x)]
+    x_coordinates = [(x * width + show_window_width - hand_window_width) if x is not None else None for x in (right_hand_x + left_hand_x)]
     y_coordinates = [(y * height) if y is not None else None for y in (right_hand_y + left_hand_y)]
 
     return x_coordinates, y_coordinates
@@ -132,30 +155,45 @@ def draw_circles(image, x_coordinates, y_coordinates):
             cv2.circle(image, point, radiu, color, -1)
 
 
-def process_frame(k4a, model, mp_hands, frame_queue, window_width):
-    while True:
-        capture = k4a.get_capture()
-        image = capture.color[:, 640 - window_width:640 + window_width, :3]
-        height, width, _ = image.shape
+def process_frame(k4a, model, mp_hands, frame_queue, show_window_width, hand_window_width, running_flag):
+    while running_flag[0]:
+        try:
+            capture = k4a.get_capture()
 
-        results_pose = model(image, stream=True, conf=0.7, verbose=False)
+            image = capture.color[:, :, :3]
+            image_hand = cv2.cvtColor(image[:, 640 - hand_window_width:640 + hand_window_width, :3], cv2.COLOR_BGR2RGB)
+            height, width, _ = image_hand.shape
+            image = image[:, 640 - show_window_width:640 + show_window_width, :3]
 
-        image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        results_hand = mp_hands.process(image_rgb).multi_hand_landmarks
+            results_pose = model(image, stream=True, conf=0.7, verbose=False)
 
-        x_coordinates, y_coordinates = extract_landmark_coordinates(results_hand, height, width)
+            results_hand = mp_hands.process(image_hand).multi_hand_landmarks
 
-        frame_queue.put((image, results_pose, x_coordinates, y_coordinates))
+            x_coordinates, y_coordinates = extract_landmark_coordinates(results_hand, height, width, show_window_width, hand_window_width)
+
+            frame_queue.put((image, results_pose, x_coordinates, y_coordinates), timeout=0.1)
+        except queue.Full:
+            # 在队列满时忽略，以避免阻塞
+            print("full")
+            continue
+        except Exception as e:
+            print(f"Error in thread: {e}")
+            break
+
+    print("Thread exiting...")
 
 
 def main():
     k4a, model, mp_hands = initialize()
 
     frame_queue = queue.Queue(maxsize=1)
+    running_flag = [True]  # 使用列表作为可变标志
 
-    window_width = 200
+    show_window_width = 400
+    hand_window_width = 200
 
-    threading.Thread(target=process_frame, args=(k4a, model, mp_hands, frame_queue, window_width)).start()
+    thread = threading.Thread(target=process_frame, args=(k4a, model, mp_hands, frame_queue, show_window_width, hand_window_width, running_flag))
+    thread.start()
 
     frame_count = 0
     start_time = time.time()
@@ -179,11 +217,16 @@ def main():
                 cv2.imshow("rgb", image)
 
             if cv2.waitKey(1) & 0xFF == ord("q"):
+                running_flag[0] = False  # 设置标志为False以停止线程
                 break
     finally:
         k4a.stop()
         cv2.destroyAllWindows()
         mp_hands.close()
+        print('1')
+        thread.join()  # 确保线程结束
+        print('2')
+
 
 if __name__ == "__main__":
     main()

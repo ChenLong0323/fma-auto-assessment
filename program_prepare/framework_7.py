@@ -1,8 +1,8 @@
 """
-手部显示为完整关节点数据
-修改了process_frame函数
-    删除返回的image:frame_queue.put((image, results_pose, results_hand), timeout=0.1)
-    删除获取的shape
+本版本相较于上个版本，修复了按q无法退出的bug，同时提升了速度
+frame_queue.put((image, results_pose, x_coordinates, y_coordinates)) 这一行的作用是将处理好的帧数据放入队列 frame_queue 中，以便主线程能够从队列中取出并显示处理后的图像。
+检查 frame_queue 是否已满 (if not frame_queue.full()) 是为了避免阻塞。因为 Queue.put() 在队列已满时会阻塞当前线程，直到有空位可用。如果不进行此检查，可能会导致线程无法及时响应退出标志，尤其是在 frame_queue 只有一个位置时（maxsize=1）。
+为了进一步优化，可以设置一个超时时间，使得 put 操作不会无限期地阻塞。以下是改进后的代码：
 """
 import pyk4a
 from pyk4a import Config, PyK4A
@@ -12,7 +12,6 @@ import cv2
 import time
 import threading
 import queue
-
 
 def initialize():
     """
@@ -27,7 +26,7 @@ def initialize():
     )
     k4a.start()
 
-    model = YOLO('models/yolov8s-pose.pt')
+    model = YOLO('../models/yolov8s-pose.pt')
 
     mp_hands = mp.solutions.hands.Hands(
         static_image_mode=False,
@@ -38,7 +37,6 @@ def initialize():
     )
 
     return k4a, model, mp_hands
-
 
 def fps_cal(start_time, frame_count):
     """
@@ -68,19 +66,82 @@ def fps_cal(start_time, frame_count):
         fps = frame_count / elapsed_time
     return fps, start_time, frame_count
 
+def extract_landmark_coordinates(results_hand, height, width):
+    """
+    提取手部关键点的坐标
+
+    参数:
+    results_hand : list
+        检测到的手部关键点列表
+    height : int
+        图像的高度
+    width : int
+        图像的宽度
+
+    返回:
+    x_coordinates : list
+        手部关键点的x坐标列表
+    y_coordinates : list
+        手部关键点的y坐标列表
+    """
+    if not results_hand:
+        return [None, None, None, None], [None, None, None, None]
+
+    right_hand_x = [None, None]
+    right_hand_y = [None, None]
+    left_hand_x = [None, None]
+    left_hand_y = [None, None]
+
+    for hand_landmarks in results_hand:
+        x5, x17 = hand_landmarks.landmark[5].x, hand_landmarks.landmark[17].x
+        y5, y17 = hand_landmarks.landmark[5].y, hand_landmarks.landmark[17].y
+
+        if x5 < 0.5:
+            right_hand_x = [x5, x17]
+            right_hand_y = [y5, y17]
+        else:
+            left_hand_x = [x5, x17]
+            left_hand_y = [y5, y17]
+
+    x_coordinates = [(x * width) if x is not None else None for x in (right_hand_x + left_hand_x)]
+    y_coordinates = [(y * height) if y is not None else None for y in (right_hand_y + left_hand_y)]
+
+    return x_coordinates, y_coordinates
+
+def draw_circles(image, x_coordinates, y_coordinates):
+    """
+    在图像上绘制圆圈
+
+    参数:
+    image : numpy.ndarray
+        要绘制的图像
+    x_coordinates : list
+        手部关键点的x坐标列表
+    y_coordinates : list
+        手部关键点的y坐标列表
+    """
+    colors = [(0, 0, 255), (0, 255, 255), (255, 0, 0), (0, 255, 0)]
+    radius = [10, 5, 10, 5]
+    for (x, y), color, radiu in zip(zip(x_coordinates, y_coordinates), colors, radius):
+        if x is not None and y is not None:
+            point = (int(x), int(y))
+            cv2.circle(image, point, radiu, color, -1)
 
 def process_frame(k4a, model, mp_hands, frame_queue, window_width, running_flag):
     while running_flag[0]:
         try:
             capture = k4a.get_capture()
             image = capture.color[:, 640 - window_width:640 + window_width, :3]
+            height, width, _ = image.shape
 
             results_pose = model(image, stream=True, conf=0.7, verbose=False)
 
             image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-            results_hand = mp_hands.process(image_rgb)
+            results_hand = mp_hands.process(image_rgb).multi_hand_landmarks
 
-            frame_queue.put((results_pose, results_hand), timeout=0.1)
+            x_coordinates, y_coordinates = extract_landmark_coordinates(results_hand, height, width)
+
+            frame_queue.put((image, results_pose, x_coordinates, y_coordinates), timeout=0.1)
         except queue.Full:
             # 在队列满时忽略，以避免阻塞
             continue
@@ -105,30 +166,16 @@ def main():
     start_time = time.time()
     fps = 0
 
-    mp_drawing = mp.solutions.drawing_utils
-    mp_drawing_styles = mp.solutions.drawing_styles
-
     try:
         while True:
             if not frame_queue.empty():
-                results_pose, results_hand = frame_queue.get()
+                image, results_pose, x_coordinates, y_coordinates = frame_queue.get()
 
                 fps, start_time, frame_count = fps_cal(start_time, frame_count)
 
-                # 绘制姿态
                 for result in results_pose:
                     image = result.plot()
-
-                # 绘制手部关键点
-                if results_hand.multi_hand_landmarks:
-                    for hand_landmarks in results_hand.multi_hand_landmarks:
-                        mp_drawing.draw_landmarks(
-                            image,
-                            hand_landmarks,
-                            mp.solutions.hands.HAND_CONNECTIONS,
-                            mp_drawing_styles.get_default_hand_landmarks_style(),
-                            mp_drawing_styles.get_default_hand_connections_style()
-                        )
+                draw_circles(image, x_coordinates, y_coordinates)
 
                 # 翻转图像
                 image = cv2.flip(image, 1)
