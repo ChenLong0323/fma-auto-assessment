@@ -208,3 +208,8 @@ def process_hand(image, mp_hands, data_cons, keypoints):
 
 # 240715项目目的
 本项目主要更新func_ActionDetector项目中的函数，多数动作将手划入交互内容
+
+# 240718 更新项目
+1. 修改前平举对于手肘的
+2. 添加健侧手健侧
+3. 连续指鼻试验
