@@ -106,13 +106,13 @@ def process_hand(image, mp_hands, data_cons, keypoints):
     # 检测到手
     else:
         hand_landmarks = results_hand[0].landmark
-        x0, x5, x17 = hand_landmarks[0].x, hand_landmarks[5].x, hand_landmarks[17].x
-        y0, y5, y17 = hand_landmarks[0].y, hand_landmarks[5].y, hand_landmarks[17].y
+        x0, x8, x20 = hand_landmarks[0].x, hand_landmarks[8].x, hand_landmarks[20].x
+        y0, y8, y20 = hand_landmarks[0].y, hand_landmarks[8].y, hand_landmarks[20].y
         # 去除归一化
-        x0, x5, x17 = (x0 * width + data_cons.WIDTH_DET_POSE - data_cons.WIDTH_DET_HAND,
-                       x5 * width + data_cons.WIDTH_DET_POSE - data_cons.WIDTH_DET_HAND,
-                       x17 * width + data_cons.WIDTH_DET_POSE - data_cons.WIDTH_DET_HAND)
-        y0, y5, y17 = y0 * height, y5 * height, y17 * height
+        x0, x8, x20 = (x0 * width + data_cons.WIDTH_DET_POSE - data_cons.WIDTH_DET_HAND,
+                       x8 * width + data_cons.WIDTH_DET_POSE - data_cons.WIDTH_DET_HAND,
+                       x20 * width + data_cons.WIDTH_DET_POSE - data_cons.WIDTH_DET_HAND)
+        y0, y8, y20 = y0 * height, y8 * height, y20 * height
         # 计算手腕与手的距离并分配手
         if lx is not None and ly is not None and rx is not None and ry is not None:
             dis_l = (x0 - lx) ** 2 + (y0 - ly) ** 2
@@ -120,54 +120,54 @@ def process_hand(image, mp_hands, data_cons, keypoints):
 
             if dis_l < dis_r:
                 hands_coordinates[0] = [x0, y0]
-                hands_coordinates[1] = [x5, y5]
-                hands_coordinates[2] = [x17, y17]
+                hands_coordinates[1] = [x8, y8]
+                hands_coordinates[2] = [x20, y20]
                 if len(results_hand) == 2:
-                    x0, x5, x17 = results_hand[1].landmark[0].x, results_hand[1].landmark[5].x, results_hand[1].landmark[17].x
-                    y0, y5, y17 = results_hand[1].landmark[0].y, results_hand[1].landmark[5].y, results_hand[1].landmark[17].y
-                    x0, x5, x17 = (x0 * width + data_cons.WIDTH_DET_POSE - data_cons.WIDTH_DET_HAND,
-                                   x5 * width + data_cons.WIDTH_DET_POSE - data_cons.WIDTH_DET_HAND,
-                                   x17 * width + data_cons.WIDTH_DET_POSE - data_cons.WIDTH_DET_HAND)
-                    y0, y5, y17 = y0 * height, y5 * height, y17 * height
+                    x0, x8, x20 = results_hand[1].landmark[0].x, results_hand[1].landmark[8].x, results_hand[1].landmark[20].x
+                    y0, y8, y20 = results_hand[1].landmark[0].y, results_hand[1].landmark[8].y, results_hand[1].landmark[20].y
+                    x0, x8, x20 = (x0 * width + data_cons.WIDTH_DET_POSE - data_cons.WIDTH_DET_HAND,
+                                   x8 * width + data_cons.WIDTH_DET_POSE - data_cons.WIDTH_DET_HAND,
+                                   x20 * width + data_cons.WIDTH_DET_POSE - data_cons.WIDTH_DET_HAND)
+                    y0, y8, y20 = y0 * height, y8 * height, y20 * height
                     hands_coordinates[3] = [x0, y0]
-                    hands_coordinates[4] = [x5, y5]
-                    hands_coordinates[5] = [x17, y17]
+                    hands_coordinates[4] = [x8, y8]
+                    hands_coordinates[5] = [x20, y20]
             else:
                 hands_coordinates[3] = [x0, y0]
-                hands_coordinates[4] = [x5, y5]
-                hands_coordinates[5] = [x17, y17]
+                hands_coordinates[4] = [x8, y8]
+                hands_coordinates[5] = [x20, y20]
                 if len(results_hand) == 2:
-                    x0, x5, x17 = results_hand[1].landmark[0].x, results_hand[1].landmark[5].x, results_hand[1].landmark[17].x
-                    y0, y5, y17 = results_hand[1].landmark[0].y, results_hand[1].landmark[5].y, results_hand[1].landmark[17].y
-                    x0, x5, x17 = (x0 * width + data_cons.WIDTH_DET_POSE - data_cons.WIDTH_DET_HAND,
-                                   x5 * width + data_cons.WIDTH_DET_POSE - data_cons.WIDTH_DET_HAND,
-                                   x17 * width + data_cons.WIDTH_DET_POSE - data_cons.WIDTH_DET_HAND)
-                    y0, y5, y17 = y0 * height, y5 * height, y17 * height
+                    x0, x8, x20 = results_hand[1].landmark[0].x, results_hand[1].landmark[8].x, results_hand[1].landmark[20].x
+                    y0, y8, y20 = results_hand[1].landmark[0].y, results_hand[1].landmark[8].y, results_hand[1].landmark[20].y
+                    x0, x8, x20 = (x0 * width + data_cons.WIDTH_DET_POSE - data_cons.WIDTH_DET_HAND,
+                                   x8 * width + data_cons.WIDTH_DET_POSE - data_cons.WIDTH_DET_HAND,
+                                   x20 * width + data_cons.WIDTH_DET_POSE - data_cons.WIDTH_DET_HAND)
+                    y0, y8, y20 = y0 * height, y8 * height, y20 * height
                     hands_coordinates[0] = [x0, y0]
-                    hands_coordinates[1] = [x5, y5]
-                    hands_coordinates[2] = [x17, y17]
+                    hands_coordinates[1] = [x8, y8]
+                    hands_coordinates[2] = [x20, y20]
         # 只有左手腕
         elif lx is not None and ly is not None:
             hands_coordinates[0] = [x0, y0]
-            hands_coordinates[1] = [x5, y5]
-            hands_coordinates[2] = [x17, y17]
+            hands_coordinates[1] = [x8, y8]
+            hands_coordinates[2] = [x20, y20]
 
         # 只有右手腕
         elif rx is not None and ry is not None:
             hands_coordinates[3] = [x0, y0]
-            hands_coordinates[4] = [x5, y5]
-            hands_coordinates[5] = [x17, y17]
+            hands_coordinates[4] = [x8, y8]
+            hands_coordinates[5] = [x20, y20]
 
         # 没有手腕信息，按检测顺序分配
         else:
             if hands_coordinates[3] == [None, None]:
                 hands_coordinates[3] = [x0, y0]
-                hands_coordinates[4] = [x5, y5]
-                hands_coordinates[5] = [x17, y17]
+                hands_coordinates[4] = [x8, y8]
+                hands_coordinates[5] = [x20, y20]
             else:
                 hands_coordinates[0] = [x0, y0]
-                hands_coordinates[1] = [x5, y5]
-                hands_coordinates[2] = [x17, y17]
+                hands_coordinates[1] = [x8, y8]
+                hands_coordinates[2] = [x20, y20]
     return hands_coordinates
 
 

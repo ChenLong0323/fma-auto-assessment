@@ -14,7 +14,7 @@ class Constants:
     TRIGGER_MAXLEN = 60
     THRESHOLD_TRIGGER = 30
     THRESHOLD_OVERTIME = 600
-    hand_flag = [0, 1, 1, 1, 1]
+    hand_flag = [0, 1, 0, 1, 1]
 
 
 class HandStatus:

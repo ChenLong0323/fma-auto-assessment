@@ -205,3 +205,6 @@ def process_hand(image, mp_hands, data_cons, keypoints):
 # 待解决
 
 3. 检测函数更新
+
+# 240715项目目的
+本项目主要更新func_ActionDetector项目中的函数，多数动作将手划入交互内容
