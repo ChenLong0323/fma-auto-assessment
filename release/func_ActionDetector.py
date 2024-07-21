@@ -22,6 +22,7 @@
 import logging
 import math
 import time
+import cv2
 
 # 配置日志记录
 logging.basicConfig(
@@ -36,7 +37,7 @@ class ActionDetector:
     def detect(self,
                action_idx,
                data_cons, data_var, data_result,
-               keypoints_ad, boxes, x_coordinates, y_coordinates,
+               keypoints_ad, boxes, hands_coordinates, image_show,
                trigger_queue, trigger_queue_overtime):
         raise NotImplementedError("Subclasses should implement this method")
 
@@ -45,7 +46,7 @@ class Action1Detector(ActionDetector):
     def detect(self,
                action_idx,
                data_cons, data_var, data_result,
-               keypoints_ad, boxes, x_coordinates, y_coordinates,
+               keypoints_ad, boxes, hands_coordinates, image_show,
                trigger_queue, trigger_queue_overtime):
         required_keypoints_indices = [9,  # "left_wrist"
                                       10,  # "right_wrist"
@@ -58,7 +59,7 @@ class Action1Detector(ActionDetector):
         # 判断是否进入检测内容
         if len(keypoints_ad) > max(required_keypoints_indices):
             required_keypoints = [keypoints_ad[i][:2] for i in required_keypoints_indices]
-            distance_threshold = 50
+            distance_threshold = 30
             # TODO：这里是这个动作的修改内容
             # data_var.flag_handedness = 0  # 惯用手，0是左手，1是右手
             if data_result.fma[action_idx][data_var.flag_handedness] == 0:
@@ -66,6 +67,7 @@ class Action1Detector(ActionDetector):
                 x1, y1 = required_keypoints[0 + data_var.flag_handedness]
                 x2, y2 = required_keypoints[2 + data_var.flag_handedness]
                 distance = math.sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2)
+                cv2.circle(image_show, (int(x2), int(y2)), distance_threshold, (0, 255, 0), 2)
                 if distance < distance_threshold:
                     trigger_queue.append(1)
                     trigger_queue_overtime.append(0)
@@ -130,14 +132,14 @@ class Action1Detector(ActionDetector):
                      f"fma: {data_result.fma}, num_sides_finished: {data_var.num_sides_finished}, "
                      f"num_side_count: {data_var.num_side_count}, move_start_time: {data_result.move_start_time},"
                      f"dis: {data_result.dis}")
-        return action_idx
+        return action_idx, image_show
 
 
 class Action3Detector(ActionDetector):
     def detect(self,
                action_idx,
                data_cons, data_var, data_result,
-               keypoints_ad, boxes, x_coordinates, y_coordinates,
+               keypoints_ad, boxes, hands_coordinates, image_show,
                trigger_queue, trigger_queue_overtime):
         required_keypoints_indices = [9,  # "left_wrist"
                                       10,  # "right_wrist"
@@ -220,7 +222,7 @@ class Action3Detector(ActionDetector):
                      f"fma: {data_result.fma}, num_sides_finished: {data_var.num_sides_finished}, "
                      f"num_side_count: {data_var.num_side_count}, move_start_time: {data_result.move_start_time},"
                      f"dis: {data_result.dis}")
-        return action_idx
+        return action_idx, image_show
 
 
 class ActionManager:
@@ -233,13 +235,13 @@ class ActionManager:
     def detect_action(self,
                       action_idx,
                       data_cons, data_var, data_result,
-                      keypoints_ad, boxes, x_coordinates, y_coordinates,
+                      keypoints_ad, boxes, hands_coordinates, image_show,
                       trigger_queue, trigger_queue_overtime):
         if action_idx in self.detectors:
             return self.detectors[action_idx].detect(
                 action_idx,
                 data_cons, data_var, data_result,
-                keypoints_ad, boxes, x_coordinates, y_coordinates,
+                keypoints_ad, boxes, hands_coordinates, image_show,
                 trigger_queue, trigger_queue_overtime)
         else:
             return f"Unknown action index: {action_idx}"

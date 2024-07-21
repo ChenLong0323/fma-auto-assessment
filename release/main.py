@@ -24,7 +24,7 @@ def main():
     queue_fps_interface = deque(maxlen=30)
 
     trigger_queue = deque(maxlen=60)
-    trigger_queue_overtime = deque(maxlen=600)
+    trigger_queue_overtime = deque(maxlen=1200)
     # 程序是否运行
     flag_running = threading.Event()
     flag_running.set()  # Initially set the event to True
@@ -43,7 +43,7 @@ def main():
 
     thread_interface = threading.Thread(target=func_inter, args=(flag_running, action_idx, action_manager,
                                                                  data_cons, data_var, data_result,
-                                                                 queue_keypoints, queue_fps_interface,
+                                                                 queue_keypoints, queue_fps_interface,queue_frame_image,
                                                                  trigger_queue, trigger_queue_overtime))
 
     thread_frame.start()
