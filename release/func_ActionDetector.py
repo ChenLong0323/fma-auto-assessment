@@ -27,8 +27,8 @@ import cv2
 # 配置日志记录
 logging.basicConfig(
     level=logging.INFO,  # 设置日志记录级别
-    format='%(pastime)s - %(levelness)s - %(message)s',  # 设置日志记录格式
-    filename='3_draw_in_inter.log',  # 设置日志文件名
+    format='%(asctime)s - %(levelname)s - %(message)s',  # 设置日志记录格式
+    filename='3_darw_in_inter.log',  # 设置日志文件名
     filemode='w'  # 设置文件模式，'w' 表示覆盖写入，'a' 表示追加写入
 )
 
@@ -207,30 +207,28 @@ class Action1Detector(ActionDetector):
         return action_idx, image_show
 
 
-class Action2Detector(ActionDetector): # 手触腰椎
+class Action2Detector(ActionDetector):  # 手触腰椎
     def detect(self,
                action_idx,
                data_cons, data_var, data_result,
                keypoints_ad, boxes, hands_coordinates, image_show,
                trigger_queue, trigger_queue_overtime):
-        required_keypoints_indices = [14,  # "right_knee",
-                                      13,  # "left_knee",
-                                      3,  # "left_ear"
-                                      4]  # "right_ear"
-        # 判断是否进入检测内容
-        logging.info('action1 is running')
-        # 判断是否进入检测内容
+        required_keypoints_indices = [13,  # "left_knee"
+                                      14,  # "right_knee",
+                                      7,  # "left_elbow"
+                                      8]  # "right_elbow"
+
+        logging.info('action2 is running')
         if len(keypoints_ad) > max(required_keypoints_indices):
             required_keypoints = [keypoints_ad[i][:2] for i in required_keypoints_indices]
-            # 如果左手，data_var.flag_handedness = 0，则是hans_coordinates[0]不为空
+            # 如果左手，data_var.flag_handedness = 0，则是hands_coordinates[0]不为空
             # 如果右手，data_var.flag_handedness = 1，则是hands_coordinates[3]不为空
-            if hands_coordinates[3 * data_var.flag_handedness][0] is not None:
-                # 获取左右手的位置
-                x1, y1 = hands_coordinates[1 + 3 * data_var.flag_handedness]
-                distance_threshold = 30
-                # TODO：这里是这个动作的修改内容
-                # data_var.flag_handedness = 0  # 惯用手，0是左手，1是右手
-                if data_result.fma[action_idx][data_var.flag_handedness] == 0:
+            # 获取左右手的位置
+            x1, y1 = hands_coordinates[1 + 3 * data_var.flag_handedness]
+            distance_threshold = 30
+            if data_result.fma[action_idx][data_var.flag_handedness] == 0:
+                if hands_coordinates[3 * data_var.flag_handedness][0] is not None:
+
                     # 获取左右膝盖的位置
                     x2, y2 = required_keypoints[data_var.flag_handedness]
                     # 计算距离
@@ -260,46 +258,59 @@ class Action2Detector(ActionDetector): # 手触腰椎
                             data_var.num_sides_finished += 1
 
                 # 量表评分为 1
-                else:
-                    # 获取左右耳坐标
-                    x2, y2 = required_keypoints[2 + data_var.flag_handedness]
-                    # 计算距离
-                    distance = math.sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2)
-                    # 记录最小距离
-                    if distance < data_result.dis[action_idx][data_var.flag_handedness]:
-                        data_result.dis[action_idx][data_var.flag_handedness] = distance
+            else:
+                distance_threshold = 20
+                # 取同侧hip
+                hip1x, hip1y = required_keypoints[data_var.flag_handedness]
+                # 取对策hip
+                hip2x, hip2y = required_keypoints[1 - data_var.flag_handedness]
+                # 取手肘坐标
+                elbow_x, elbow_y = required_keypoints[2 + data_var.flag_handedness]
 
-                    # 绘制交互
-                    cv2.circle(image_show, (int(x2), int(y2)), distance_threshold, (0, 255, 0), 2)
-                    # 交互判断
-                    if distance < distance_threshold:
-                        trigger_queue.append(1)
-                        trigger_queue_overtime.append(0)
-                        # 如果trigger 超过阈值，触发下一阶段
-                        if sum(trigger_queue) > data_cons.THRESHOLD_TRIGGER:
-                            trigger_queue.clear()
-                            trigger_queue_overtime.clear()
-                            # 评分+1,为2
-                            data_result.fma[action_idx][data_var.flag_handedness] += 1
-                            data_result.move_start_time[action_idx][data_var.flag_handedness] = time.time() - data_result.move_start_time[action_idx][
-                                data_var.flag_handedness]
-                            # 正常换手
-                            data_var.flag_handedness = 1 - data_var.flag_handedness
-                            data_var.num_sides_finished += 1
-                    # 超时检测
-                    else:
-                        trigger_queue_overtime.append(1)
-                        trigger_queue.append(0)
-                        if sum(trigger_queue_overtime) > data_cons.THRESHOLD_OVERTIME:
-                            trigger_queue.clear()
-                            trigger_queue_overtime.clear()
-                            # 超时换手
-                            data_var.flag_handedness = 1 - data_var.flag_handedness
-                            data_var.num_sides_finished += 1
-                # 检测是否更换动作
-                if data_var.num_sides_finished == 2:
-                    action_idx += 1
-                    data_var.num_sides_finished = 0
+                # 计算距离
+                distance = abs(hip1x - elbow_x)
+                # 记录最小距离
+                if distance < data_result.dis[action_idx][data_var.flag_handedness]:
+                    data_result.dis[action_idx][data_var.flag_handedness] = distance
+
+                # 绘制交互
+                cv2.circle(image_show, (int((hip1x + hip2x) / 2), int(hip1y - 100)), 20, (0, 255, 0), 2)
+                # 左手
+                if data_var.flag_handedness == 0:
+                    cv2.line(image_show, (int(hip1x + distance_threshold), int(hip1y + 100)), (int(hip1x + distance_threshold), int(hip1y - 400)),
+                             (0, 255, 0), 2)
+                else:
+                    cv2.line(image_show, (int(hip1x - distance_threshold), int(hip1y + 100)), (int(hip1x - distance_threshold), int(hip1y - 400)),
+                             (0, 255, 0), 2)
+                # 交互判断:检测不到手，并且肩膀离hip距离小于阈值
+                if distance < distance_threshold and hands_coordinates[3 * data_var.flag_handedness][0] is None:
+                    trigger_queue.append(1)
+                    trigger_queue_overtime.append(0)
+                    # 如果trigger 超过阈值，触发下一阶段
+                    if sum(trigger_queue) > data_cons.THRESHOLD_TRIGGER:
+                        trigger_queue.clear()
+                        trigger_queue_overtime.clear()
+                        # 评分+1,为2
+                        data_result.fma[action_idx][data_var.flag_handedness] += 1
+                        data_result.move_start_time[action_idx][data_var.flag_handedness] = time.time() - data_result.move_start_time[action_idx][
+                            data_var.flag_handedness]
+                        # 正常换手
+                        data_var.flag_handedness = 1 - data_var.flag_handedness
+                        data_var.num_sides_finished += 1
+                # 超时检测
+                else:
+                    trigger_queue_overtime.append(1)
+                    trigger_queue.append(0)
+                    if sum(trigger_queue_overtime) > data_cons.THRESHOLD_OVERTIME:
+                        trigger_queue.clear()
+                        trigger_queue_overtime.clear()
+                        # 超时换手
+                        data_var.flag_handedness = 1 - data_var.flag_handedness
+                        data_var.num_sides_finished += 1
+            # 检测是否更换动作
+            if data_var.num_sides_finished == 2:
+                action_idx += 1
+                data_var.num_sides_finished = 0
 
         logging.info(f"action_idx: {action_idx}, flag_handedness: {data_var.flag_handedness}, "
                      f"fma: {data_result.fma}, num_sides_finished: {data_var.num_sides_finished}, "
@@ -308,6 +319,7 @@ class Action2Detector(ActionDetector): # 手触腰椎
         return action_idx, image_show
 
 
+# 4-2 前平举
 class Action3Detector(ActionDetector):
     def detect(self,
                action_idx,
@@ -365,7 +377,7 @@ class Action3Detector(ActionDetector):
                     # 获取手肘坐标
                     x3, y3 = required_keypoints[4 + data_var.flag_handedness]
                     distance = math.sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2)
-                    distance3 = y3 - y2
+                    distance3 = abs(y3 - y2)
                     # 记录最小距离
                     if distance < data_result.dis[action_idx][data_var.flag_handedness]:
                         data_result.dis[action_idx][data_var.flag_handedness] = distance
@@ -406,15 +418,352 @@ class Action3Detector(ActionDetector):
                      f"fma: {data_result.fma}, num_sides_finished: {data_var.num_sides_finished}, "
                      f"num_side_count: {data_var.num_side_count}, move_start_time: {data_result.move_start_time},"
                      f"dis: {data_result.dis}")
+        return action_idx, image_show  # 4-2 前平举
+
+
+# 5-1侧平举
+class Action4Detector(ActionDetector):
+    def detect(self,
+               action_idx,
+               data_cons, data_var, data_result,
+               keypoints_ad, boxes, hands_coordinates, image_show,
+               trigger_queue, trigger_queue_overtime):
+        required_keypoints_indices = [13,  # "left_knee",
+                                      14,  # "right_knee",
+                                      5,  # "left_shoulder"
+                                      6,  # "right_shoulder"
+                                      7,  # "left_elbow",
+                                      8]  # "right_elbow",
+
+        logging.info('action4 is running')
+        if len(keypoints_ad) > max(required_keypoints_indices):
+            required_keypoints = [keypoints_ad[i][:2] for i in required_keypoints_indices]
+            if hands_coordinates[3 * data_var.flag_handedness][0] is not None:
+                x1, y1 = hands_coordinates[1 + 3 * data_var.flag_handedness]
+                distance_threshold = 30
+                # TODO：这里是这个动作的修改内容
+                # data_var.flag_handedness = 0  # 惯用手，0是左手，1是右手
+                if data_result.fma[action_idx][data_var.flag_handedness] == 0:
+                    # 获取左右膝盖的位置
+                    x2, y2 = required_keypoints[data_var.flag_handedness]
+                    # 计算距离
+                    distance = math.sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2)
+                    # 绘制交互
+                    cv2.circle(image_show, (int(x2), int(y2)), distance_threshold, (0, 255, 0), 2)
+                    # 交互判断
+                    if distance < distance_threshold:
+                        trigger_queue.append(1)
+                        trigger_queue_overtime.append(0)
+                        # 如果trigger 超过阈值，触发下一阶段
+                        if sum(trigger_queue) > data_cons.THRESHOLD_TRIGGER:
+                            trigger_queue.clear()
+                            trigger_queue_overtime.clear()
+                            # 评分为1
+                            data_result.fma[action_idx][data_var.flag_handedness] += 1
+                            data_result.move_start_time[action_idx][data_var.flag_handedness] = time.time()
+                    # 超时检测
+                    else:
+                        trigger_queue_overtime.append(1)
+                        trigger_queue.append(0)
+                        if sum(trigger_queue_overtime) > data_cons.THRESHOLD_OVERTIME:
+                            trigger_queue.clear()
+                            trigger_queue_overtime.clear()
+                            # 超时换手
+                            data_var.flag_handedness = 1 - data_var.flag_handedness
+                            data_var.num_sides_finished += 1
+
+                # 量表评分为 1
+                else:
+                    dis_t1 = 200
+                    # 获取肩膀坐标
+                    x2, y2 = required_keypoints[2 + data_var.flag_handedness]
+                    # 获取手肘坐标
+                    x3, y3 = required_keypoints[4 + data_var.flag_handedness]
+                    distance = math.sqrt((abs(x1 - x2) - dis_t1) ** 2 + (y1 - y2) ** 2)
+                    distance3 = abs(y3 - y2)
+                    # 记录最小距离
+                    if distance < data_result.dis[action_idx][data_var.flag_handedness]:
+                        data_result.dis[action_idx][data_var.flag_handedness] = distance
+
+                    # 绘制交互
+                    if data_var.flag_handedness == 0:
+                        cv2.circle(image_show, (int(x2 + dis_t1), int(y2)), distance_threshold, (0, 255, 0), 2)
+                    else:
+                        cv2.circle(image_show, (int(x2 - dis_t1), int(y2)), distance_threshold, (0, 255, 0), 2)
+                    # 判断循环
+                    if distance < distance_threshold and distance3 < 20:
+                        trigger_queue.append(1)
+                        trigger_queue_overtime.append(0)
+                        # 如果trigger 超过阈值，触发下一阶段
+                        if sum(trigger_queue) > data_cons.THRESHOLD_TRIGGER:
+                            trigger_queue.clear()
+                            trigger_queue_overtime.clear()
+                            # 评分+1,为2
+                            data_result.fma[action_idx][data_var.flag_handedness] += 1
+                            data_result.move_start_time[action_idx][data_var.flag_handedness] = time.time() - data_result.move_start_time[action_idx][
+                                data_var.flag_handedness]
+                            # 正常换手
+                            data_var.flag_handedness = 1 - data_var.flag_handedness
+                            data_var.num_sides_finished += 1
+                    # 超时检测
+                    else:
+                        trigger_queue_overtime.append(1)
+                        trigger_queue.append(0)
+                        if sum(trigger_queue_overtime) > data_cons.THRESHOLD_OVERTIME:
+                            trigger_queue.clear()
+                            trigger_queue_overtime.clear()
+                            # 超时换手
+                            data_var.flag_handedness = 1 - data_var.flag_handedness
+                            data_var.num_sides_finished += 1
+                # 检测是否更换动作
+                if data_var.num_sides_finished == 2:
+                    action_idx += 1
+                    data_var.num_sides_finished = 0
+
+        logging.info(f"action_idx: {action_idx}, flag_handedness: {data_var.flag_handedness}, "
+                     f"fma: {data_result.fma}, num_sides_finished: {data_var.num_sides_finished}, "
+                     f"num_side_count: {data_var.num_side_count}, move_start_time: {data_result.move_start_time},"
+                     f"dis: {data_result.dis}")
+        return action_idx, image_show  # 5-1侧平举# 5-1侧平举# 5-1侧平举 # 5-1侧平举
+
+
+# 5-2 前举头顶:肩关节前屈举臂过头，肘伸直，前臂中立位
+class Action5Detector(ActionDetector):
+    def detect(self,
+               action_idx,
+               data_cons, data_var, data_result,
+               keypoints_ad, boxes, hands_coordinates, image_show,
+               trigger_queue, trigger_queue_overtime):
+        required_keypoints_indices = [13,  # "left_knee",
+                                      14,  # "right_knee",
+                                      5,  # "left_shoulder"
+                                      6,  # "right_shoulder"
+                                      7,  # "left_elbow",
+                                      8]  # "right_elbow",
+
+        logging.info('action5 is running')
+        if len(keypoints_ad) > max(required_keypoints_indices):
+            required_keypoints = [keypoints_ad[i][:2] for i in required_keypoints_indices]
+            if hands_coordinates[3 * data_var.flag_handedness][0] is not None:
+                x1, y1 = hands_coordinates[1 + 3 * data_var.flag_handedness]
+                distance_threshold = 30
+                # TODO：这里是这个动作的修改内容
+                # data_var.flag_handedness = 0  # 惯用手，0是左手，1是右手
+                if data_result.fma[action_idx][data_var.flag_handedness] == 0:
+                    # 获取左右膝盖的位置
+                    x2, y2 = required_keypoints[data_var.flag_handedness]
+                    # 计算距离
+                    distance = math.sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2)
+                    # 绘制交互
+                    cv2.circle(image_show, (int(x2), int(y2)), distance_threshold, (0, 255, 0), 2)
+                    # 交互判断
+                    if distance < distance_threshold:
+                        trigger_queue.append(1)
+                        trigger_queue_overtime.append(0)
+                        # 如果trigger 超过阈值，触发下一阶段
+                        if sum(trigger_queue) > data_cons.THRESHOLD_TRIGGER:
+                            trigger_queue.clear()
+                            trigger_queue_overtime.clear()
+                            # 评分为1
+                            data_result.fma[action_idx][data_var.flag_handedness] += 1
+                            data_result.move_start_time[action_idx][data_var.flag_handedness] = time.time()
+                    # 超时检测
+                    else:
+                        trigger_queue_overtime.append(1)
+                        trigger_queue.append(0)
+                        if sum(trigger_queue_overtime) > data_cons.THRESHOLD_OVERTIME:
+                            trigger_queue.clear()
+                            trigger_queue_overtime.clear()
+                            # 超时换手
+                            data_var.flag_handedness = 1 - data_var.flag_handedness
+                            data_var.num_sides_finished += 1
+
+                # 量表评分为 1
+                # TODO：修改从这里开始
+                else:
+                    dis_t1 = 200
+                    # 获取肩膀坐标
+                    x2, y2 = required_keypoints[2 + data_var.flag_handedness]
+                    # 获取手肘坐标
+                    x3, y3 = required_keypoints[4 + data_var.flag_handedness]
+                    distance = math.sqrt((abs(x1 - x2)) ** 2 + (abs(y1 - y2) - dis_t1) ** 2)
+                    distance3 = abs(x3 - x2)
+                    # 记录最小距离
+                    if distance < data_result.dis[action_idx][data_var.flag_handedness]:
+                        data_result.dis[action_idx][data_var.flag_handedness] = distance
+
+                    # 绘制交互
+                    if data_var.flag_handedness == 0:
+                        cv2.circle(image_show, (int(x2), int(y2 - dis_t1)), distance_threshold, (0, 255, 0), 2)
+                    else:
+                        cv2.circle(image_show, (int(x2), int(y2 - dis_t1)), distance_threshold, (0, 255, 0), 2)
+                    # 判断循环
+                    if distance < distance_threshold and distance3 < 20:
+                        trigger_queue.append(1)
+                        trigger_queue_overtime.append(0)
+                        # 如果trigger 超过阈值，触发下一阶段
+                        if sum(trigger_queue) > data_cons.THRESHOLD_TRIGGER:
+                            trigger_queue.clear()
+                            trigger_queue_overtime.clear()
+                            # 评分+1,为2
+                            data_result.fma[action_idx][data_var.flag_handedness] += 1
+                            data_result.move_start_time[action_idx][data_var.flag_handedness] = time.time() - data_result.move_start_time[action_idx][
+                                data_var.flag_handedness]
+                            # 正常换手
+                            data_var.flag_handedness = 1 - data_var.flag_handedness
+                            data_var.num_sides_finished += 1
+                    # 超时检测
+                    else:
+                        trigger_queue_overtime.append(1)
+                        trigger_queue.append(0)
+                        if sum(trigger_queue_overtime) > data_cons.THRESHOLD_OVERTIME:
+                            trigger_queue.clear()
+                            trigger_queue_overtime.clear()
+                            # 超时换手
+                            data_var.flag_handedness = 1 - data_var.flag_handedness
+                            data_var.num_sides_finished += 1
+                # 检测是否更换动作
+                if data_var.num_sides_finished == 2:
+                    action_idx += 1
+                    data_var.num_sides_finished = 0
+
+        logging.info(f"action_idx: {action_idx}, flag_handedness: {data_var.flag_handedness}, "
+                     f"fma: {data_result.fma}, num_sides_finished: {data_var.num_sides_finished}, "
+                     f"num_side_count: {data_var.num_side_count}, move_start_time: {data_result.move_start_time},"
+                     f"dis: {data_result.dis}")
         return action_idx, image_show
 
-class Action4Detector(ActionDetector):
-    pass
 
-class Action5Detector(ActionDetector):
-    pass
-
+# 10 连续指鼻:基于侧平举
 class Action6Detector(ActionDetector):
+    def detect(self,
+               action_idx,
+               data_cons, data_var, data_result,
+               keypoints_ad, boxes, hands_coordinates, image_show,
+               trigger_queue, trigger_queue_overtime):
+        required_keypoints_indices = [0,  # "nose",
+                                      5,  # "left_shoulder"
+                                      6,  # "right_shoulder"
+                                      7,  # "left_elbow",
+                                      8]  # "right_elbow",
+
+        logging.info('action4 is running')
+        if len(keypoints_ad) > max(required_keypoints_indices):
+            required_keypoints = [keypoints_ad[i][:2] for i in required_keypoints_indices]
+            if hands_coordinates[3 * data_var.flag_handedness][0] is not None:
+                x1, y1 = hands_coordinates[1 + 3 * data_var.flag_handedness]
+                distance_threshold = 30
+                # TODO：这里是这个动作的修改内容
+                print('flag11111')
+                if data_result.fma[action_idx][data_var.flag_handedness] == 0:
+                    dis_t1 = 200
+                    # 获取肩膀坐标
+                    x2, y2 = required_keypoints[1 + data_var.flag_handedness]
+                    # 获取手肘坐标
+                    x3, y3 = required_keypoints[3 + data_var.flag_handedness]
+                    distance = math.sqrt((abs(x1 - x2) - dis_t1) ** 2 + (y1 - y2) ** 2)
+                    distance3 = abs(y3 - y2)
+
+                    # 绘制交互
+                    if data_var.flag_handedness == 0:
+                        cv2.circle(image_show, (int(x2 + dis_t1), int(y2)), distance_threshold, (0, 255, 0), 2)
+                    else:
+                        cv2.circle(image_show, (int(x2 - dis_t1), int(y2)), distance_threshold, (0, 255, 0), 2)
+
+                    # 交互判断
+                    if distance < distance_threshold and distance3 < 20:
+                        trigger_queue.append(1)
+                        trigger_queue_overtime.append(0)
+                        # 如果trigger 超过阈值，触发下一阶段
+                        if sum(trigger_queue) > data_cons.THRESHOLD_TRIGGER:
+                            trigger_queue.clear()
+                            trigger_queue_overtime.clear()
+                            # 评分为1
+                            data_result.fma[action_idx][data_var.flag_handedness] = 1
+                            data_var.num_side_count += 1
+                            data_var.num_sides_count += 1
+                            if data_var.num_side_count == 1:
+                                data_result.move_start_time[action_idx][data_var.flag_handedness] = time.time()
+                                data_result.dis[action_idx][data_var.flag_handedness] = [1000, 1000, 1000, 1000, 1000]
+                            if data_var.num_side_count == 6:
+                                # 评分为2
+                                data_result.fma[action_idx][data_var.flag_handedness] = 0
+                                data_result.move_start_time[action_idx][data_var.flag_handedness] = time.time() - \
+                                                                                                    data_result.move_start_time[action_idx][
+                                                                                                        data_var.flag_handedness]
+                                # 换手
+                                data_var.flag_handedness = 1 - data_var.flag_handedness
+                                data_var.num_sides_finished += 1
+                                data_var.num_side_count = 0
+                    # 超时
+                    else:
+                        trigger_queue_overtime.append(1)
+                        trigger_queue.append(0)
+                        if sum(trigger_queue_overtime) > data_cons.THRESHOLD_OVERTIME:
+                            trigger_queue.clear()
+                            trigger_queue_overtime.clear()
+                            # 超时换手
+                            data_var.flag_handedness = 1 - data_var.flag_handedness
+                            data_var.num_sides_finished += 1
+
+                # 量表评分为 1
+                else:
+                    # 获取鼻子坐标
+                    x2, y2 = required_keypoints[0]
+                    distance = math.sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2)
+
+                    # 记录距离
+                    if distance < data_result.dis[action_idx][data_var.flag_handedness][data_var.num_side_count - 1]:
+                        data_result.dis[action_idx][data_var.flag_handedness][data_var.num_side_count - 1] = distance
+                    # 绘制交互
+                    if data_var.flag_handedness == 0:
+                        cv2.circle(image_show, (int(x2), int(y2)), distance_threshold, (0, 255, 0), 2)
+                    else:
+                        cv2.circle(image_show, (int(x2), int(y2)), distance_threshold, (0, 255, 0), 2)
+
+                    # 交互判断
+                    if distance < distance_threshold:
+                        trigger_queue.append(1)
+                        trigger_queue_overtime.append(0)
+                        # 如果trigger 超过阈值，触发下一阶段
+                        if sum(trigger_queue) > data_cons.THRESHOLD_TRIGGER:
+                            trigger_queue.clear()
+                            trigger_queue_overtime.clear()
+                            # 评分为0
+                            data_result.fma[action_idx][data_var.flag_handedness] = 0
+
+                    # 超时检测
+                    else:
+                        trigger_queue_overtime.append(1)
+                        trigger_queue.append(0)
+                        if sum(trigger_queue_overtime) > data_cons.THRESHOLD_OVERTIME:
+                            trigger_queue.clear()
+                            trigger_queue_overtime.clear()
+                            # 超时换手
+                            data_var.flag_handedness = 1 - data_var.flag_handedness
+                            data_var.num_sides_finished += 1
+                # 检测是否更换动作
+                if data_var.num_sides_finished == 2:
+                    if data_var.num_sides_count == 0:
+                        data_result.fma[action_idx] = [0, 0]
+                    elif data_var.num_sides_count < 6:
+                        data_result.fma[action_idx] = [1, 0]
+                    elif data_var.num_sides_count < 12:
+                        data_result.fma[action_idx] = [2, 1]
+                    else:
+                        data_result.fma[action_idx] = [2, 2]
+
+                    action_idx += 1
+                    data_var.num_sides_finished = 0
+
+        logging.info(f"action_idx: {action_idx}, flag_handedness: {data_var.flag_handedness}, "
+                     f"fma: {data_result.fma}, num_sides_finished: {data_var.num_sides_finished}, "
+                     f"num_side_count: {data_var.num_side_count}, move_start_time: {data_result.move_start_time},"
+                     f"dis: {data_result.dis}")
+        return action_idx, image_show
+
+
+class Action7Detector(ActionDetector):
     pass
 
 class ActionManager:
@@ -422,11 +771,12 @@ class ActionManager:
         self.detectors = {
             0: Action0Detector(),  # 健侧手确定
             1: Action1Detector(),  # 2,3 对侧提肩
-            3: Action2Detector(),  # 4-1 手触腰椎
-            2: Action3Detector(),  # 4-2 前平举
+            2: Action2Detector(),  # 4-1 手触腰椎
+            3: Action3Detector(),  # 4-2 前平举
             4: Action4Detector(),  # 5-1侧平举
             5: Action5Detector(),  # 5-2 前举头顶:肩关节前屈举臂过头，肘伸直，前臂中立位
-            6: Action6Detector()  # 10 连续指鼻
+            6: Action6Detector(),  # 10 连续指鼻
+            7: Action7Detector()
         }
 
     def detect_action(self,

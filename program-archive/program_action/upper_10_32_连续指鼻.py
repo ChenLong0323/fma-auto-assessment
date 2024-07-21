@@ -189,35 +189,6 @@ def process_frame(k4a, model, mp_hands, frame_queue, running_flag,
             if len(keypoints) > max(indices) and None not in x_coordinates and None not in y_coordinates:
                 ext = keypoints[indices]
 
-                # 寻找惯用手，先检测惯用手
-                if dict_hand["flag_handedness"] == 0:
-                    # 右侧
-                    cv2.rectangle(image,
-                                  (dict_read["width_det_pose"] - dict_read["width_draw_shoulder"], int(ext[5])),
-                                  (dict_read["width_det_pose"] - dict_read["width_draw_shoulder"] - 40, int(ext[5]) - 60),
-                                  (0, 255, 255), 2)
-
-                    # 左侧
-                    cv2.rectangle(image,
-                                  (dict_read["width_det_pose"] + dict_read["width_draw_shoulder"], int(ext[3])),
-                                  (dict_read["width_det_pose"] + dict_read["width_draw_shoulder"] + 40, int(ext[3]) - 60),
-                                  (0, 255, 255), 2)
-
-                    # 惯用手检测：右侧
-                    if ext[5] > y_coordinates[0]:
-                        trigger.append(1)
-                        if sum(trigger) > dict_read["threshold"]:
-                            dict_hand["flag_handedness"] = 2
-                            trigger.clear()
-                    #
-                    elif ext[3] > y_coordinates[3]:
-                        trigger.append(1)
-                        if sum(trigger) > dict_read["threshold"]:
-                            trigger.clear()
-                            dict_hand["flag_handedness"] = 1
-                    else:
-                        trigger.append(0)
-
                 # 左侧检测
                 elif dict_hand["flag_handedness"] == 1:
                     if dict_hand["flag_left"] == 0:

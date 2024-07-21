@@ -21,6 +21,7 @@ class HandStatus:
     flag_handedness = 0  # 惯用手，0是左手，1是右手
     num_sides_finished = 0  # 单个动作完成次数，判断单边完成后，如果=2，则action_idx+1
     num_side_count = 0  # 记录单侧完成次数（不是所有的都需要，连续指鼻需要）
+    num_sides_count = 0
 
 
 class ResultData:
