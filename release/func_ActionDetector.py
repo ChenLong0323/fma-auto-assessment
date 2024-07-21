@@ -1,4 +1,4 @@
-'''
+"""
 "keypoints": [
     0"nose",
     1"left_eye",
@@ -18,7 +18,7 @@
     15"left_ankle",
     16"right_ankle"
 ]
-'''
+"""
 import logging
 import math
 import time
@@ -27,8 +27,8 @@ import cv2
 # 配置日志记录
 logging.basicConfig(
     level=logging.INFO,  # 设置日志记录级别
-    format='%(asctime)s - %(levelname)s - %(message)s',  # 设置日志记录格式
-    filename='3_darw_in_inter.log',  # 设置日志文件名
+    format='%(pastime)s - %(levelness)s - %(message)s',  # 设置日志记录格式
+    filename='3_draw_in_inter.log',  # 设置日志文件名
     filemode='w'  # 设置文件模式，'w' 表示覆盖写入，'a' 表示追加写入
 )
 
@@ -207,7 +207,7 @@ class Action1Detector(ActionDetector):
         return action_idx, image_show
 
 
-class Action2Detector(ActionDetector):
+class Action2Detector(ActionDetector): # 手触腰椎
     def detect(self,
                action_idx,
                data_cons, data_var, data_result,
@@ -408,14 +408,25 @@ class Action3Detector(ActionDetector):
                      f"dis: {data_result.dis}")
         return action_idx, image_show
 
+class Action4Detector(ActionDetector):
+    pass
+
+class Action5Detector(ActionDetector):
+    pass
+
+class Action6Detector(ActionDetector):
+    pass
 
 class ActionManager:
     def __init__(self):
         self.detectors = {
             0: Action0Detector(),  # 健侧手确定
-            1: Action1Detector(),  # 对侧提肩
-            3: Action2Detector(),  # 手触腰椎
-            2: Action3Detector(),  # 前平举
+            1: Action1Detector(),  # 2,3 对侧提肩
+            3: Action2Detector(),  # 4-1 手触腰椎
+            2: Action3Detector(),  # 4-2 前平举
+            4: Action4Detector(),  # 5-1侧平举
+            5: Action5Detector(),  # 5-2 前举头顶:肩关节前屈举臂过头，肘伸直，前臂中立位
+            6: Action6Detector()  # 10 连续指鼻
         }
 
     def detect_action(self,
