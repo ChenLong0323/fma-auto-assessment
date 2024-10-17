@@ -5,8 +5,8 @@ import mediapipe as mp
 import cv2
 import time
 import queue
-import numpy as np
 import logging
+import numpy as np
 import func_ActionDetector
 
 
@@ -57,17 +57,26 @@ def draw_circles(image, hands_coordinates):
     hands_coordinates : list
         手部关键点的坐标列表，包含左右手的关键点坐标
     """
-    colors = [(255, 0, 0), (0, 255, 255), (255, 0, 0), (0, 0, 255), (255, 255, 0), (0, 0, 255)]
+    colors = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 165, 0), (0, 255, 255), (128, 0, 128)]
     radius = [10, 5, 5, 10, 5, 5]
 
-    for (coord, color, radiu) in zip(hands_coordinates, colors, radius):
+    # 循环遍历每个手部关键点，绘制圆圈并标注序号
+    for idx, (coord, color, radiu) in enumerate(zip(hands_coordinates, colors, radius)):
         x, y = coord
         if x is not None and y is not None:
             point = (int(x), int(y))
+            # 绘制圆圈
             cv2.circle(image, point, radiu, color, -1)
+            # 在圆圈旁边绘制序号，字体大小和颜色可根据需求调整
+            cv2.putText(image, str(idx+1), (int(x) + 5, int(y) - 5),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2, cv2.LINE_AA)
+
 
 
 def capture_frame(k4a, data_cons):
+    """
+    从Kinect设备中捕获一帧图像，并进行裁剪
+    """
     capture = k4a.get_capture()
     image = capture.color[:, 640 - data_cons.WIDTH_DET_POSE:640 + data_cons.WIDTH_DET_POSE, :3]
     return image
@@ -182,9 +191,11 @@ def func_frame_cap(k4a, model, mp_hands,
             hands_coordinates = None
 
             # 提取手腕坐标
-            if data_cons.hand_flag[action_idx]:
-                hands_coordinates = process_hand(image, mp_hands, data_cons, keypoints)
-                draw_circles(image_show, hands_coordinates)
+            # if data_cons.hand_flag[action_idx]:
+            #     hands_coordinates = process_hand(image, mp_hands, data_cons, keypoints)
+            #     draw_circles(image_show, hands_coordinates)
+            hands_coordinates = process_hand(image, mp_hands, data_cons, keypoints)
+            draw_circles(image_show, hands_coordinates)
 
             if keypoints is not None:
                 try:

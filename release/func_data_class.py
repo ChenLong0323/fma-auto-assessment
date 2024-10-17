@@ -1,5 +1,5 @@
 # 类变量（class variable）和实例变量（instance variable）的区别
-# 重复调用累变量，累变量不会初始化
+# 重复调用累变量，类变量不会初始化
 
 class Constants:
     WIDTH_DET_POSE = 300
@@ -14,7 +14,7 @@ class Constants:
     TRIGGER_MAXLEN = 60
     THRESHOLD_TRIGGER = 30
     THRESHOLD_OVERTIME = 600
-    hand_flag = [1, 1, 1, 1, 1, 1, 1, 1]
+    hand_flag = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
 
 
 class HandStatus:
